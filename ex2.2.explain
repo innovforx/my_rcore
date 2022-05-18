@@ -1,0 +1,8 @@
+创建一个taskinfo结构体
+类似于elf格式，将app的名字保存到app中
+然后加载app的时候，将名字读出来
+
+APP格式:
+.offset
+.name
+.start_code

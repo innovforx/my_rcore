@@ -10,8 +10,9 @@ use crate::{Errorln, println};
 
 
 
-const SYSCALL_WRITE:usize = 64;
+const SYSCALL_WRITE:usize = 2;
 const SYSCALL_EXIT:usize = 93;
+const SYSCALL_INFO:usize = 127;
 
 pub fn syscall(syscall_id : usize,args : [usize;3]) -> isize{
     match syscall_id {
@@ -22,6 +23,10 @@ pub fn syscall(syscall_id : usize,args : [usize;3]) -> isize{
         SYSCALL_EXIT => {
             sys_exit(args[0] as i32)
         },
+        SYSCALL_INFO => {
+            println!("in info");
+            sys_app_info(args[0])
+        }
         _ => {
             Errorln!("not support syscall id");
             panic!("not support syscall id")

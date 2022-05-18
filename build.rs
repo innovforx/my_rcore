@@ -21,6 +21,8 @@ fn insert_app_data() -> Result<()> {
         })
         .collect();
     apps.sort();
+    
+    println!("{:?}",apps);
 
     writeln!(
         f,
@@ -47,9 +49,11 @@ _num_app:
     .global app_{0}_start
     .global app_{0}_end
 app_{0}_start:
+    .byte {3}
+    .string "{1}"
     .incbin "{2}{1}.bin"
 app_{0}_end:"#,
-            idx, app, TARGET_PATH
+            idx, app, TARGET_PATH,app.len()
         )?;
     }
     Ok(())

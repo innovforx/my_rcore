@@ -12,6 +12,7 @@ mod batch;
 mod sync;
 #[macro_use]
 mod syscall;
+mod task;
 // use core::panic::PanicInfo;
 
 use core::arch::global_asm;

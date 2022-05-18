@@ -1,5 +1,6 @@
 mod context;
-use crate::{Errorln, batch::run_next_app, syscall};
+use crate::{Errorln, batch::run_next_app, syscall, println};
+
 pub use crate::trap::context::TrapContext;
 
 use core::arch::global_asm;
@@ -31,7 +32,7 @@ pub fn init(){
 pub fn trap_handler(cx : &mut TrapContext) -> &mut TrapContext{
     let scause = scause::read();
     let stval = stval::read();
-
+    println!("user sys call id {}",cx.x[17]);
     match scause.cause(){
         Trap::Exception(Exception::UserEnvCall) => {
             //下一条指令的地址

@@ -1,10 +1,12 @@
 use core::arch::asm;
+use core::fmt::Debug;
+use core::ops::Add;
 // use core::panicking::panic;
 use crate::sync::UPSafeCell;
-use crate::Infoln;
+use crate::{Infoln, println, print};
 use lazy_static::*;
 use crate::trap::TrapContext;
-
+use crate::task::Task_info;
 
 const USER_STACK_SIZE:usize = 4096*2;
 const KERNEL_STACK_SIZE : usize = 4096*2;
@@ -60,8 +62,10 @@ impl UserStack {
 
 struct AppManager{
     num_app : usize,
-    current_app :usize,
+    current_app : usize,
     app_start:[usize;MAX_APP_NUM + 1],
+    app_info : [Option<Task_info>;MAX_APP_NUM + 1],
+    
 }
 
 impl AppManager {
@@ -79,7 +83,7 @@ impl AppManager {
     }
 
     unsafe fn load_app(&self,app_id:usize){
-        if app_id > MAX_APP_NUM{
+        if app_id >= self.num_app{
             panic!("app id error");
         }
         Infoln!("Kernel Loading app{}",app_id);
@@ -118,12 +122,47 @@ lazy_static!{
             let num_app = num_app_ptr.read_volatile();
 
             let mut app_start : [usize;MAX_APP_NUM + 1] = [0;MAX_APP_NUM + 1];
+            
+            // let mut app_info_raw = [0usize;(MAX_APP_NUM + 1)* core::mem::size_of::<Task_info>()];
+
+            let mut app_infos : [Option<Task_info>;MAX_APP_NUM + 1] = [None;MAX_APP_NUM + 1];
 
             let app_start_raw_mut : &[usize]= core::slice::from_raw_parts_mut(num_app_ptr.add(1), num_app + 1);
 
             app_start[..=num_app].copy_from_slice(app_start_raw_mut);
 
-            AppManager { num_app: (num_app), current_app: (0), app_start: (app_start) }
+
+            for i in 0..=20 {
+                let ptr = app_start[0].add(i) as *mut u8;
+                println!("{:X} : {}",ptr as u64,ptr.read_volatile());
+            }
+
+            for i in 0..num_app{
+                let ptr = app_start[i] as *mut u8;
+                let len = ptr.read_volatile() as usize;
+                
+                let name_raw_mut : &[u8]= core::slice::from_raw_parts_mut(ptr.add(1), len);
+                let mut name : [u8;20] = [0;20];
+                let mut app_info = Task_info{
+                    name: None,
+                };
+                // app_info.name.unwrap().copy_from_slice(name_raw_mut);
+                name[..len].copy_from_slice(name_raw_mut);
+
+                app_info.name = Some(name);
+
+                app_infos[i] = Some(app_info);
+
+                println!("{:?}",app_info);
+
+                app_start[i] += len+2;
+                
+                println!("{:x}",app_start[i] as usize);
+
+            }
+            
+
+            AppManager { num_app: (num_app), current_app: (0), app_start: (app_start) ,app_info:(app_infos) }
 
         })
     };
@@ -162,5 +201,32 @@ pub fn run_next_app() -> ! {
     }
 
     panic!("Unreachable in batch::run_current_app!");
+
+}
+
+pub fn print_current_app_info(){
+    
+    let app_manager = APP_MENAGER.exclusive_access();
+    let id = app_manager.current_app - 1;
+    let name = & match  app_manager.app_info[id]  {
+        Some(task_info) => {
+            match task_info.name {
+                Some(n) => n,
+                None => panic!("No name")
+            }
+        },
+        None => {
+            panic!("task info error");
+        }
+    };
+    println!("id : {}",app_manager.current_app);
+
+    for c in *name{
+        if c == 0 as u8{
+            break;
+        }
+        print!("{}",c as char);
+    }
+    println!("");   
 
 }
