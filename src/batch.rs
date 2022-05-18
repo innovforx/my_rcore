@@ -79,7 +79,7 @@ impl AppManager {
     }
 
     unsafe fn load_app(&self,app_id:usize){
-        if app_id > MAX_APP_NUM{
+        if app_id >= self.num_app{
             panic!("app id error");
         }
         Infoln!("Kernel Loading app{}",app_id);

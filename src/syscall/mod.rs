@@ -10,7 +10,7 @@ use crate::{Errorln, println};
 
 
 
-const SYSCALL_WRITE:usize = 64;
+const SYSCALL_WRITE:usize = 2;
 const SYSCALL_EXIT:usize = 93;
 
 pub fn syscall(syscall_id : usize,args : [usize;3]) -> isize{
