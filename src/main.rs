@@ -3,6 +3,7 @@
 #![feature(panic_info_message)]
 
 // use crate::lang_items;
+mod config;
 #[macro_use]
 mod lang_items;
 mod sbi;
@@ -12,6 +13,7 @@ mod batch;
 mod sync;
 #[macro_use]
 mod syscall;
+mod task;
 // use core::panic::PanicInfo;
 
 use core::arch::global_asm;
@@ -29,7 +31,7 @@ pub fn rust_main()-> ! {
     Infoln!("Info msg test blue underline");
     Debugln!("Debug msg test green underline");
     Traceln!("Trace msg test gray underline");
-
+    //test
 
     sys_mem_info();
 
