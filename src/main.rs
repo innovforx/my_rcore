@@ -9,7 +9,7 @@ mod lang_items;
 mod sbi;
 mod console;
 mod trap;
-mod batch;
+mod loader;
 mod sync;
 #[macro_use]
 mod syscall;
@@ -19,7 +19,7 @@ mod task;
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
-
+// global_asm!(include_str!("task/switch.S"));
 
 
 #[no_mangle]
@@ -39,9 +39,8 @@ pub fn rust_main()-> ! {
 
 
     trap::init();
-    batch::init();
-    batch::run_next_app();
-
+    loader::load_apps();
+    task::run_first_task();
     panic!("Shutdown");
 
     

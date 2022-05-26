@@ -1,5 +1,5 @@
 mod context;
-use crate::{Errorln, batch::run_next_app, syscall};
+use crate::{Errorln, loader::*, syscall};
 pub use crate::trap::context::TrapContext;
 
 use core::arch::global_asm;
@@ -42,11 +42,13 @@ pub fn trap_handler(cx : &mut TrapContext) -> &mut TrapContext{
         },
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault)=>{
             Errorln!("[kernel] PageFault in application, kernel killed it.");
-            run_next_app();
+            crate::task::exit_current_and_run_next();
+            // run_next_app();
         },
         Trap::Exception(Exception::IllegalInstruction) => {
             Errorln!("[kernel] IllegalInstruction in application, kernel killed it.");
-            run_next_app();
+            crate::task::exit_current_and_run_next();
+            // run_next_app();
         },
         _ => {
             panic!(

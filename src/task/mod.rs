@@ -10,9 +10,9 @@ mod task;
 
 use crate::{sync::UPSafeCell, config::MAX_APP_NUM};
 use task::*;
-use self::switch::__switch;
+use self::switch::switch;
 
-use super::batch::{get_app_num,init_app_cx};
+use super::loader::{get_app_num,init_app_cx};
 use lazy_static::lazy_static;
 use context::*;
 
@@ -63,7 +63,7 @@ impl TaskManager {
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         unsafe{
-            __switch(&mut _unused as *mut TaskContext, next_task_cx_ptr);
+            switch(&mut _unused as *mut TaskContext, next_task_cx_ptr);
         }
 
         panic!("unreachable code");
@@ -71,12 +71,14 @@ impl TaskManager {
 
     fn mark_current_suspend(&self){
         let mut inner = self.inner.exclusive_access();
-        inner.tasks[inner.current_task].task_status = TaskStatus::Ready;
+        let current_tsk_id = inner.current_task;
+        inner.tasks[current_tsk_id].task_status = TaskStatus::Ready;
     }
 
     fn mark_current_exited(&self){
         let mut inner = self.inner.exclusive_access();
-        inner.tasks[inner.current_task].task_status = TaskStatus::Exited;
+        let current_tsk_id = inner.current_task;
+        inner.tasks[current_tsk_id].task_status = TaskStatus::Exited;
     }
 
     fn find_next_task(&self) -> Option<usize>{
@@ -99,7 +101,7 @@ impl TaskManager {
 
             drop(inner);
             unsafe{
-                __switch(current_task_cx_ptr, next_task_cx_ptr);
+                switch(current_task_cx_ptr, next_task_cx_ptr);
             }
         }else{
             panic!("all complated");
