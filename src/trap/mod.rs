@@ -1,5 +1,5 @@
 mod context;
-use crate::{Errorln, loader::*, syscall};
+use crate::{Errorln, loader::*, syscall, timer::set_next_trigger, task::suspend_current_and_run_next, println};
 pub use crate::trap::context::TrapContext;
 
 use core::arch::global_asm;
@@ -11,9 +11,10 @@ use riscv::register::{
         self,
         Exception,
         Trap,
+        Interrupt,
     },
     stval,
-    stvec,
+    stvec, sie,
 };
 
 global_asm!(include_str!("trap.S"));
@@ -27,12 +28,26 @@ pub fn init(){
     }
 }
 
+pub fn enable_time_handler(){
+    unsafe{
+        sie::set_stimer();
+    }
+}
+
 #[no_mangle]
 pub fn trap_handler(cx : &mut TrapContext) -> &mut TrapContext{
     let scause = scause::read();
     let stval = stval::read();
 
     match scause.cause(){
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+
+            
+
+            set_next_trigger();
+            suspend_current_and_run_next();
+        },
+
         Trap::Exception(Exception::UserEnvCall) => {
             //下一条指令的地址
             cx.sepc += 4;

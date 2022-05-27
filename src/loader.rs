@@ -1,7 +1,7 @@
 use core::arch::asm;
 // use core::panicking::panic;
 use crate::sync::UPSafeCell;
-use crate::Infoln;
+use crate::{Infoln, println};
 use lazy_static::*;
 use crate::trap::TrapContext;
 use crate::config::*;
@@ -69,6 +69,38 @@ pub fn get_app_num() -> usize{
 }
 
 
+pub fn get_app_name(app_id : usize) -> Option<& 'static str>{
+    extern "C"{
+        fn _num_app();
+    }
+    
+    let num_app_raw_ptr = _num_app as *mut usize;    
+
+    let app_num = unsafe {
+        num_app_raw_ptr.read_volatile() 
+    }; 
+    let app_info_base_raw_ptr = unsafe {
+        // 变成u8后按照字节读取
+        num_app_raw_ptr.add(app_num + 2 + app_id).read_volatile() as *mut u8 
+    }; 
+    
+    let strlen = unsafe {
+        app_info_base_raw_ptr.read_volatile() 
+    };
+
+    let app_name_buf : &[u8] = unsafe {
+        core::slice::from_raw_parts(app_info_base_raw_ptr.add(1) , strlen as usize)
+    };
+    println!("{:?}",app_name_buf);
+    match core::str::from_utf8(app_name_buf) {
+        Ok(n) => return  Some(n),
+        Err(err) => {
+            println!("parse app {} name err : {}",app_id,err);
+            return None;
+        }
+    }
+}
+
 pub fn load_apps(){
     extern "C"{
         fn _num_app();
@@ -104,6 +136,11 @@ pub fn load_apps(){
     }
 
 }
+
+
+
+
+
 
 pub fn init_app_cx(app_id : usize) -> usize {
     // KERNEL_STACK.push_context()

@@ -47,3 +47,7 @@ pub fn shutdown()->!{
     sbi_call(SBI_SHUTDOWN, 0, 0, 0);
     panic!("it gonna to be shutdown")
 }
+
+pub fn set_timer(time : usize){
+    sbi_call(SBI_SET_TIMER,time,0,0);
+}

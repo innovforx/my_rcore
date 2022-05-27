@@ -3,6 +3,15 @@
 #![feature(panic_info_message)]
 
 // use crate::lang_items;
+
+#[cfg(feature = "board_k210")]
+#[path = "boards/k210.rs"]
+mod board;
+#[cfg(not(any(feature = "board_qemu")))]
+#[path = "boards/qemu.rs"]
+mod board;
+
+
 mod config;
 #[macro_use]
 mod lang_items;
@@ -14,6 +23,7 @@ mod sync;
 #[macro_use]
 mod syscall;
 mod task;
+mod timer;
 // use core::panic::PanicInfo;
 
 use core::arch::global_asm;
@@ -38,8 +48,10 @@ pub fn rust_main()-> ! {
 
 
 
-    trap::init();
+    trap::init();    
     loader::load_apps();
+    trap::enable_time_handler();
+    timer::set_next_trigger();
     task::run_first_task();
     panic!("Shutdown");
 
