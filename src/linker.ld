@@ -9,6 +9,10 @@ SECTIONS
     stext = .;
     .text : {
         *(.text.entry)
+        . = ALIGN(4K);
+        strampline = .;
+        *(.text.trampline);
+        . = ALIGN(4K);
         *(.text .text.*)
     }
 

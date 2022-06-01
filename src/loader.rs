@@ -1,150 +1,22 @@
-use core::arch::asm;
-// use core::panicking::panic;
-use crate::sync::UPSafeCell;
-use crate::{Infoln, println};
-use lazy_static::*;
-use crate::trap::TrapContext;
-use crate::config::*;
-
-
-
-#[derive(Clone, Copy)]
-#[repr(align(4096))]
-struct KernelStack{
-    data:[u8;KERNEL_STACK_SIZE],
-}
-
-#[derive(Clone, Copy)]
-#[repr(align(4096))]
-struct UserStack{
-    data:[u8;USER_STACK_SIZE],
-}
-
-static KERNEL_STACK:[KernelStack;MAX_APP_NUM] = [KernelStack {
-    data: [0; KERNEL_STACK_SIZE],
-};MAX_APP_NUM];
-
-static USER_STACK:[KernelStack;MAX_APP_NUM] = [KernelStack {
-    data: [0; USER_STACK_SIZE],
-};MAX_APP_NUM];
-
-
-impl KernelStack {
-    fn get_sp(&self) -> usize{
-        self.data.as_ptr() as usize + KERNEL_STACK_SIZE
-    }
-
-    pub fn push_context(&self,cx : TrapContext) -> usize{
-        //相当于入栈了
-        let cx_ptr = (self.get_sp() - core::mem::size_of::<TrapContext>())as *mut TrapContext;
-        unsafe{
-            *cx_ptr = cx;   //move
-        }
-        // unsafe{ cx_ptr.as_mut().unwrap() }
-        cx_ptr as usize
-    }
-    
-}
-
-impl UserStack {
-    fn get_sp(&self) -> usize{
-        //向下增长的，所以要加上USER_STACK_SIZE
-        self.data.as_ptr() as usize + USER_STACK_SIZE
-    }
-}
-
-
-pub fn get_base_i(app_id : usize) -> usize{
-    APP_BASE_ADDRESS + app_id * APP_SIZE_LIMIT
-}
-
-pub fn get_app_num() -> usize{
+pub fn get_num_app() -> usize{
     extern "C"{
         fn _num_app();
     }
-
     unsafe {
-        (_num_app as usize as *const usize).read_volatile()
-    }
+        (_num_app as *const usize).read_volatile()    
+    }    
 }
 
-
-pub fn get_app_name(app_id : usize) -> Option<& 'static str>{
+///读取app的ELF数据
+pub fn get_app_data(app_id : usize) -> &'static [u8]{
     extern "C"{
         fn _num_app();
     }
-    
-    let num_app_raw_ptr = _num_app as *mut usize;    
-
-    let app_num = unsafe {
-        num_app_raw_ptr.read_volatile() 
-    }; 
-    let app_info_base_raw_ptr = unsafe {
-        // 变成u8后按照字节读取
-        num_app_raw_ptr.add(app_num + 2 + app_id).read_volatile() as *mut u8 
-    }; 
-    
-    let strlen = unsafe {
-        app_info_base_raw_ptr.read_volatile() 
-    };
-
-    let app_name_buf : &[u8] = unsafe {
-        core::slice::from_raw_parts(app_info_base_raw_ptr.add(1) , strlen as usize)
-    };
-    println!("{:?}",app_name_buf);
-    match core::str::from_utf8(app_name_buf) {
-        Ok(n) => return  Some(n),
-        Err(err) => {
-            println!("parse app {} name err : {}",app_id,err);
-            return None;
-        }
-    }
-}
-
-pub fn load_apps(){
-    extern "C"{
-        fn _num_app();
-    }
-    let num_app_ptr = _num_app as usize as *const usize;
-    let num_app = get_app_num();
-    let app_start = unsafe {
-        core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1)
-    };
+    let num_app_ptr = _num_app as *mut usize;
+    let num_app = unsafe{num_app_ptr.read_volatile()};
+    let app_data_ptr = unsafe {num_app_ptr.add(1 + app_id) as *mut u8};
+    let mut app_data_end_ptr = unsafe {num_app_ptr.add(1 + app_id + 1) as *mut u8};
     unsafe{
-        asm!("fence.i");
+        core::slice::from_raw_parts_mut(app_data_ptr, app_data_end_ptr as usize - app_data_ptr as usize)
     }
-
-    for i in 0..num_app{
-        let base_i = get_base_i(i);
-        (base_i..base_i+APP_SIZE_LIMIT).for_each(
-            |addr|
-            {
-                unsafe{
-                    (addr as usize as *mut usize).write_volatile(0);
-                }
-            }
-        );
-
-        let src = unsafe {
-            core::slice::from_raw_parts(app_start[i] as *const u8, app_start[i+1]  - app_start[i])
-        };
-
-        let dst = unsafe {
-            core::slice::from_raw_parts_mut(base_i as * mut u8,src.len())
-        };
-        dst.copy_from_slice(src);
-    }
-
 }
-
-
-
-
-
-
-pub fn init_app_cx(app_id : usize) -> usize {
-    // KERNEL_STACK.push_context()
-    KERNEL_STACK[app_id].push_context(TrapContext::app_init_context(get_base_i(app_id),USER_STACK[app_id].get_sp()))
-}
-
-
