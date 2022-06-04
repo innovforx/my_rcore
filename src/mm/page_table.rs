@@ -1,10 +1,10 @@
 
 
-use alloc::vec::Vec;
+use alloc::vec::*;
 use bitflags::*;
 use super::address::*;
-use super::frame_allocator::FrameTracker;
-
+use super::frame_allocator::{FrameTracker, frame_alloc};
+use alloc::vec;
 
 bitflags! {
     pub struct PTEFlages : u8{
@@ -67,4 +67,99 @@ impl PageTableEntry {
 pub struct PageTable{
     root_ppn : PhysPageNum,
     frames : Vec<FrameTracker>,
+}
+
+impl PageTable {
+    pub fn new() -> Self{
+        let frame = frame_alloc().unwrap();
+        PageTable { root_ppn: (frame.ppn), frames: vec![frame] }
+    }
+
+    pub fn from_token(satp : usize) -> Self{
+        //satp 的低44位是 ppn
+        Self { 
+            root_ppn: PhysPageNum::from(satp & ((1usize << 44) - 1)), 
+            frames: Vec::new() }
+    }
+
+    pub fn find_pte_create(&mut self, vpn : VirtPageNum) -> Option<&mut PageTableEntry>{
+        let idxs = vpn.indexs();
+        let mut ppn = self.root_ppn;
+        let mut result : Option<&mut PageTableEntry> = None;
+        for (i,idx) in idxs.iter().enumerate(){
+            let pte  = &mut ppn.get_pte_array()[*idx];
+            if i == 2{
+                result = Some(pte);
+                break;
+            }
+            if !pte.is_valid(){
+                let frame = frame_alloc().unwrap();
+                *pte = PageTableEntry::new(frame.ppn, PTEFlages::V);
+                self.frames.push(frame);
+            }
+            ppn = pte.ppn();
+        }
+        result
+    }
+
+
+    pub fn find_pte(&mut self, vpn : VirtPageNum) -> Option<&mut PageTableEntry>{
+        let idxs = vpn.indexs();
+        let mut ppn = self.root_ppn;
+        let mut result : Option<&mut PageTableEntry>= None;
+        for (i,idx) in idxs.iter().enumerate(){
+            let pte =&mut ppn.get_pte_array()[*idx];
+            if i == 2{
+                result = Some(pte);
+                break;
+            }
+            if !pte.is_valid(){
+                break;
+            }
+
+        }
+        result
+    }
+
+    pub fn map(&mut self,vpn : VirtPageNum, ppn : PhysPageNum,flags : PTEFlages){
+        let pte = self.find_pte_create(vpn).unwrap();
+        *pte = PageTableEntry::new(ppn, flags | PTEFlages::V);
+    }
+
+    pub fn unmap(&mut self,vpn : VirtPageNum){
+        let pte = self.find_pte(vpn).unwrap();
+
+        *pte = PageTableEntry::empty();
+    }
+
+    pub fn translate(&self, vpn : VirtPageNum ) -> Option<PageTableEntry>{
+        self.find_pte(vpn).map(|pte| *pte)
+    }
+
+    pub fn token(&self) -> usize{
+        8usize<< 60 | self.root_ppn.0
+    }
+
+}
+
+///读一个虚拟地址实际映射的物理地址的内容 ???
+pub fn translate_byte_buffer(token : usize,ptr : *const u8,len : usize) -> Vec<&'static mut[u8]>{
+    let pagetable = PageTable::from_token(token);
+    let mut start = ptr as usize;
+    let end = start + len;
+    let mut v = Vec::new();
+    while start < end {
+        let start_va = VirtAddr::from(start);
+        let mut vpn = start_va.floor();
+        let ppn = pagetable.translate(vpn).unwrap().ppn();
+        vpn.step();
+        let mut end_va : VirtAddr = vpn.into();    
+        end_va = end_va.min(VirtAddr::from(end));
+        if end_va.page_offset() == 0{
+            v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..]);
+        }else{
+            v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..end_va.page_offset()]);
+        }
+    }
+    v
 }

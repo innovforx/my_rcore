@@ -10,16 +10,16 @@ pub const PPN_WIDTH_SV39 : usize = PA_WIDTH_SV39 - PAGE_SIZE_BITS;
 pub const VPN_WIDTH_SV39 : usize = VA_WIDTH_SV39 - PAGE_SIZE_BITS;
 
 
-#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct PhyAddr(pub usize);
 
-#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VirtAddr(pub usize);
 
-#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord,Debug)]
 pub struct PhysPageNum(pub usize);
 
-#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy,PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct VirtPageNum(pub usize);
 
 impl From<usize> for PhyAddr {
@@ -201,6 +201,13 @@ where
 {
     pub fn new(start : T,end : T) ->Self {
         Self { l: (start), r: (end) }
+    }
+    pub fn get_start(&self) -> T {
+        self.l
+    }
+
+    pub fn get_end(&self) -> T {
+        self.r
     }
 }
 
