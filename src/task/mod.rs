@@ -8,11 +8,12 @@ mod task;
 
 
 
-use crate::{sync::UPSafeCell, config::MAX_APP_NUM, loader::get_app_name, println, timer::get_time_ms, Errorln};
+use crate::{sync::UPSafeCell, loader::{get_app_data,}, println, timer::get_time_ms, Errorln, trap::TrapContext, Debugln};
+use alloc::vec::Vec;
 use task::*;
 use self::switch::switch;
 
-use super::loader::{get_app_num,init_app_cx};
+use super::loader::{get_num_app};
 use lazy_static::lazy_static;
 use context::*;
 use info::TaskInfo;
@@ -23,37 +24,29 @@ pub struct TaskManager{
 }
 
 pub struct TaskManagerInner{
-    tasks : [TaskControlBlock;MAX_APP_NUM],
+    tasks : Vec<TaskControlBlock>,
     current_task : usize,
 }
 
 lazy_static!{
     pub static ref TASK_MANAGER : TaskManager = {
-        let num_app = get_app_num() ;
-        let mut tasks = [TaskControlBlock{
-            task_cx : TaskContext::zero_init(),
-            task_status : TaskStatus::UnInit,
-            task_info : TaskInfo::zero_init(),
-            
-        };MAX_APP_NUM];
-
-        for (i , t) in tasks.iter_mut().enumerate(){
-            t.task_cx = TaskContext::goto_restore(init_app_cx(i));
-            t.task_status = TaskStatus::Ready;
-            t.task_info = TaskInfo::new(i, get_app_name(i), t.task_status, 0)
+        let num_app = get_num_app() ;
+        println!("num app {}",num_app);
+        let mut tasks : Vec<TaskControlBlock> = Vec::new();
+        for i in 0..num_app{
+            tasks.push(TaskControlBlock::new(get_app_data(i), i));
         }
-
-
-        TaskManager { num_app: (num_app),
-             inner: 
-                unsafe {
-                    UPSafeCell::new(TaskManagerInner { 
-                        tasks: (tasks), 
-                        current_task: (0) })
-                },       
-        
-        }
-        // TaskManager { num_app: (0), inner: (0) } 
+        Debugln!("TaskManager init success");
+        TaskManager { 
+            num_app,
+             inner: unsafe{
+                UPSafeCell::new(TaskManagerInner{
+                    tasks,
+                    current_task : 0,
+                })
+             }
+                
+        } 
     };
 }
 
@@ -69,6 +62,7 @@ impl TaskManager {
 
         drop(inner);
         let mut _unused = TaskContext::zero_init();
+        Debugln!("ready to switch to first");
         unsafe{
             switch(&mut _unused as *mut TaskContext, next_task_cx_ptr);
         }
@@ -98,6 +92,15 @@ impl TaskManager {
             .find(|id| inner.tasks[*id].task_status == TaskStatus::Ready)
     }
 
+    fn get_current_token(&self) -> usize{
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].get_user_token()
+    }
+
+    fn get_current_trap_cx(&self) -> &'static mut TrapContext {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].get_trap_cx()
+    }
 
     fn run_next_app(&self){
         if let Some(next) = self.find_next_task(){
@@ -182,6 +185,14 @@ pub fn get_current_task_info()-> TaskInfo{
             panic!("unreachable")
         }
     }
+}
+
+pub fn current_app_token() -> usize{
+    TASK_MANAGER.get_current_token()
+}
+
+pub fn current_trap_cx() -> &'static mut TrapContext{
+    TASK_MANAGER.get_current_trap_cx()
 }
 
 

@@ -28,8 +28,6 @@ fn insert_app_data() -> Result<()> {
     .align 3
     .section .data
     .global _num_app
-    .global _app_info_start
-    .global _app_info_end
 _num_app:
     .quad {}"#,
         apps.len()
@@ -40,13 +38,6 @@ _num_app:
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
 
-    for i in 0..apps.len() {
-        writeln!(f, r#"    .quad app_{}_info_start"#, i)?;
-    }
-    writeln!(f, r#"    .quad app_{}_info_end"#, apps.len() - 1)?;
-
-
-
     for (idx, app) in apps.iter().enumerate() {
         println!("app_{}: {}", idx, app);
         writeln!(
@@ -55,16 +46,11 @@ _num_app:
     .section .data
     .global app_{0}_start
     .global app_{0}_end
-    .global app_{0}_info_start
-    .global app_{0}_info_end
-app_{0}_info_start:
-    .byte {3}
-    .string "{1}"
-app_{0}_info_end:
+    .align 3
 app_{0}_start:
-    .incbin "{2}{1}.bin"
+    .incbin "{2}{1}"
 app_{0}_end:"#,
-            idx, app, TARGET_PATH,app.len()
+            idx, app, TARGET_PATH
         )?;
     }
     Ok(())

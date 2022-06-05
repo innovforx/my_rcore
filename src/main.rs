@@ -1,8 +1,16 @@
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
-
+#![feature(alloc_error_handler)]
 // use crate::lang_items;
+
+extern crate alloc;
+
+#[macro_use]
+extern crate bitflags;
+
+
+
 
 #[cfg(feature = "board_k210")]
 #[path = "boards/k210.rs"]
@@ -16,6 +24,8 @@ mod config;
 #[macro_use]
 mod lang_items;
 mod sbi;
+mod mm;
+
 mod console;
 mod trap;
 mod loader;
@@ -32,6 +42,7 @@ global_asm!(include_str!("link_app.S"));
 // global_asm!(include_str!("task/switch.S"));
 
 
+
 #[no_mangle]
 pub fn rust_main()-> ! {
     clear_bss();
@@ -45,13 +56,20 @@ pub fn rust_main()-> ! {
 
     sys_mem_info();
 
+    println!("ready to open memory");
 
+    mm::init();
+
+    println!("[kernel] mm test");
+
+    mm::remap_test();
 
 
     trap::init();    
-    loader::load_apps();
+    Debugln!("trap init success");
     trap::enable_time_handler();
     timer::set_next_trigger();
+    Debugln!("ready to run first");
     task::run_first_task();
     panic!("Shutdown");
 

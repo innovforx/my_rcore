@@ -1,6 +1,7 @@
 
 use core::mem::size_of;
 
+use crate::Debugln;
 use crate::config::PAGE_SIZE_BITS;
 use crate::config::PAGE_SIZE;
 use super::page_table::*;
@@ -30,7 +31,8 @@ impl From<usize> for PhyAddr {
 
 impl From<usize> for VirtAddr {
     fn from(v: usize) -> Self {
-        VirtAddr(v & ((1 << VA_WIDTH_SV39) - 1))
+        // Debugln!("usize {:x} to vaddr {:x}",v,v&((1usize << VA_WIDTH_SV39) - 1));
+        VirtAddr(v & ((1usize << VA_WIDTH_SV39) - 1))
     }
 }
 
@@ -76,12 +78,13 @@ impl From<VirtPageNum> for usize {
 
 impl VirtAddr {
     pub fn floor(&self) -> VirtPageNum{
-        VirtPageNum((self.0 & !((PAGE_SIZE) - 1)) >> PAGE_SIZE_BITS)
+        // Debugln!("vaddr {:x} floor {:x}",self.0,(self.0 & !((PAGE_SIZE) - 1)) >> PAGE_SIZE_BITS);
+        VirtPageNum(self.0 >> PAGE_SIZE_BITS)
     }
 
     pub fn ceil(&self) -> VirtPageNum{
         //-1是因为当 xx..xx 0000的时候向上取整应该不变，但是因为计算的时候会加上pagesize所以会导致计算错误，所以减一修正
-        VirtPageNum( ((self.0 - 1 + PAGE_SIZE) & !((PAGE_SIZE) - 1)) >> PAGE_SIZE_BITS )
+        VirtPageNum((self.0 - 1 + PAGE_SIZE) >> PAGE_SIZE_BITS )
     }
 
     pub fn page_offset(&self) -> usize{
@@ -185,7 +188,7 @@ impl StepByOne for VirtPageNum {
 
 use core::fmt::{Debug};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy,Debug)]
 pub struct SimpleRange<T>
 where
     T : StepByOne + Copy + PartialEq + PartialOrd + Debug,

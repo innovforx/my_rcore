@@ -2,6 +2,8 @@
 
 use alloc::vec::*;
 use bitflags::*;
+use crate::{println, Debugln};
+
 use super::address::*;
 use super::frame_allocator::{FrameTracker, frame_alloc};
 use alloc::vec;
@@ -20,7 +22,7 @@ bitflags! {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy,Debug)]
 #[repr(C)]
 pub struct PageTableEntry{
     pub bits : usize,
@@ -63,7 +65,7 @@ impl PageTableEntry {
 
 }
 
-
+#[derive(Debug)]
 pub struct PageTable{
     root_ppn : PhysPageNum,
     frames : Vec<FrameTracker>,
@@ -103,19 +105,29 @@ impl PageTable {
     }
 
 
-    pub fn find_pte(&mut self, vpn : VirtPageNum) -> Option<&mut PageTableEntry>{
+    pub fn find_pte(&self, vpn : VirtPageNum) -> Option<&mut PageTableEntry>{
+        // Debugln!("vpn : {:?}",vpn);
         let idxs = vpn.indexs();
+        // Debugln!("idxs : {:?}",idxs);
         let mut ppn = self.root_ppn;
+        
         let mut result : Option<&mut PageTableEntry>= None;
         for (i,idx) in idxs.iter().enumerate(){
+            // Debugln!("ppn : {:?}",ppn);
+
             let pte =&mut ppn.get_pte_array()[*idx];
+            
+            // Debugln!("pte : {:?}",pte);
+            
             if i == 2{
                 result = Some(pte);
                 break;
             }
             if !pte.is_valid(){
+                Debugln!(" pte is valid ");
                 break;
             }
+            ppn = pte.ppn();
 
         }
         result

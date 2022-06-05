@@ -19,7 +19,7 @@ extern "C"{
     fn erodata();
     fn sdata();
     fn edata();
-    fn sbss_with_stack();
+    fn sbss_width_stack();
     fn ebss();
     fn ekernel();
     fn strampline();
@@ -30,7 +30,7 @@ pub enum MapType{
     Framed,
 }
 
-
+#[derive(Debug)]
 pub struct MapArea{
     vpn_range : VPNRange,
     data_frames : BTreeMap<VirtPageNum,FrameTracker>,
@@ -118,7 +118,7 @@ impl MapArea {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct MemorySet{
     page_table : PageTable,
     areas : Vec<MapArea>,
@@ -181,7 +181,7 @@ impl MemorySet {
         println!(".text {:#x},{:#x}",stext as usize,etext as usize);
         println!(".rodata {:#x},{:#x}",srodata as usize,erodata as usize);
         println!(".data {:#x},{:#x}",sdata as usize,edata as usize);
-        println!(".bss {:#x},{:#x}",sbss_with_stack as usize,ebss as usize);
+        println!(".bss {:#x},{:#x}",sbss_width_stack as usize,ebss as usize);
 
         println!("mapping .text section");
 
@@ -213,7 +213,7 @@ impl MemorySet {
 
         memory_set.push(
             MapArea::new(
-                (sbss_with_stack as usize).into(),
+                (sbss_width_stack as usize).into(),
                 (ebss as usize).into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::W),
@@ -228,6 +228,89 @@ impl MemorySet {
                 None);
         memory_set        
     }
+
+    pub fn from_elf2(elf_data: &[u8]) -> (Self, usize, usize) {
+        let mut memory_set = Self::new_bare();
+        // map trampoline
+        memory_set.map_trampoline();
+        // map program headers of elf, with U flag
+        let elf = xmas_elf::ElfFile::new(elf_data).unwrap();
+        let elf_header = elf.header;
+        let magic = elf_header.pt1.magic;
+        assert_eq!(magic, [0x7f, 0x45, 0x4c, 0x46], "invalid elf!");
+        let ph_count = elf_header.pt2.ph_count();
+        let mut max_end_vpn = VirtPageNum(0);
+        for i in 0..ph_count {
+            let ph = elf.program_header(i).unwrap();
+            if ph.get_type().unwrap() == xmas_elf::program::Type::Load {
+                let start_va: VirtAddr = (ph.virtual_addr() as usize).into();
+                let end_va: VirtAddr = ((ph.virtual_addr() + ph.mem_size()) as usize).into();
+                let mut map_perm = MapPermission::U;
+                let ph_flags = ph.flags();
+                if ph_flags.is_read() {
+                    map_perm |= MapPermission::R;
+                }
+                if ph_flags.is_write() {
+                    map_perm |= MapPermission::W;
+                }
+                if ph_flags.is_execute() {
+                    map_perm |= MapPermission::X;
+                }
+                let map_area = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
+                max_end_vpn = map_area.vpn_range.get_end();
+                memory_set.push(
+                    map_area,
+                    Some(&elf.input[ph.offset() as usize..(ph.offset() + ph.file_size()) as usize]),
+                );
+            }
+        }
+        /*  这里都是虚拟地址 
+            trampline : 0xFFFFFFFFFFFFF000 
+                  |
+                  |----> size 4K
+                  |
+            trap contextn : 0xFFFFFFFFFFFFE000
+                  |
+            user stack top
+                   |_______> user stack size
+                   |
+            user stack bottom
+            guard page
+            app data
+        */
+        //注意程序段是倒着来的
+        // map user stack with U flags
+        let max_end_va: VirtAddr = max_end_vpn.into();
+        let mut user_stack_bottom: usize = max_end_va.into();
+        // guard page
+        user_stack_bottom += PAGE_SIZE;
+        let user_stack_top = user_stack_bottom + USER_STACK_SIZE;
+        memory_set.push(
+            MapArea::new(
+                user_stack_bottom.into(),
+                user_stack_top.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W | MapPermission::U,
+            ),
+            None,
+        );
+        // map TrapContext
+        memory_set.push(
+            MapArea::new(
+                TRAP_CONTEXT.into(),
+                TRAMPLINE.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+        (
+            memory_set,
+            user_stack_top,
+            elf.header.pt2.entry_point() as usize,
+        )
+    }
+
 
     pub fn from_elf(elf_data : &[u8]) -> (Self,usize,usize){
         let mut memory_set = MemorySet::new_bare();
@@ -286,7 +369,14 @@ impl MemorySet {
                 None);
         
 
-
+        memory_set.push(
+            MapArea::new(
+                TRAP_CONTEXT.into(),
+                TRAMPLINE.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W,
+            ),
+            None,);
         (
             memory_set,
             user_stack_top,
@@ -312,7 +402,7 @@ impl MemorySet {
 
 
 lazy_static!{
-    pub static ref KERNEL_SPACE : Arc<UPSafeCell<MemorySet>> = Arc::new(UPSafeCell::new(MemorySet::new_bare()));
+    pub static ref KERNEL_SPACE : Arc<UPSafeCell<MemorySet>> = Arc::new(unsafe{UPSafeCell::new(MemorySet::new_kernel())});
 }
 
 pub fn remap_test() {

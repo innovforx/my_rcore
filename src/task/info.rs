@@ -4,7 +4,7 @@ use crate::{syscall::{SYSCALL_NUM, get_syscall_name}, timer::get_time_ms};
 use super::task::TaskStatus;
 use core::fmt::Display;
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub struct TaskInfo{
     pub id :usize,
     pub name : Option<&'static str>,
@@ -12,7 +12,7 @@ pub struct TaskInfo{
     call : [SyscallInfo;SYSCALL_NUM],
     pub time : usize,
 }
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 struct SyscallInfo{
     id : usize,
     times : usize,

@@ -1,18 +1,17 @@
-use crate::{Errorln, print, println};
+use crate::{Errorln, print, println, task::current_app_token ,mm::translate_byte_buffer};
 
 const FD_STDOUT:usize = 1;
 
 pub fn sys_write(fd :usize,buf : *const u8,len : usize) -> isize{
     match fd {
         FD_STDOUT => {
-            let slice : &[u8]= unsafe {
-                core::slice::from_raw_parts(buf, len)
-            };
-            // let slice = unsafe { core::slice::from_raw_parts(buf, len) };
-            let str = core::str::from_utf8(slice).unwrap();
-            print!("{}",str);
-            
-            len as isize            
+
+            let buffers = translate_byte_buffer(current_app_token(),buf,len);
+
+            for buffer in buffers {
+                print!("{}", core::str::from_utf8(buffer).unwrap());
+            }
+            len as isize        
         },
         _=> {
             Errorln!("error fd");
